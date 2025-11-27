@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ema Claims Chief of Staff - Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 h-screen overflow-hidden">
+    <div id="app"></div>
+
+    <script type="module">
+        // Mock Data - Multiple Claims
+        const ALL_CLAIMS = [
+            {
+                id: "CLM-2025-001",
+                status: "Investigation",
+                priority: "High",
+                description: "Intersection collision - liability disputed",
+                parties: [
+                    { name: "John Doe", role: "Insured", vehicle: "2022 Toyota Camry", phone: "(555) 123-4567" },
+                    { name: "Jane Smith", role: "Claimant", vehicle: "2019 Honda Civic", phone: "(555) 987-6543" }
+                ],
+                timeline: [
+                    { date: "Feb 14, 09:15 AM", type: "FNOL", title: "First Notice of Loss", description: "Call received from John Doe." },
+                    { date: "Feb 14, 10:30 AM", type: "Doc", title: "Photos Uploaded", description: "8 scene photos uploaded." },
+                    { date: "Feb 14, 11:00 AM", type: "AI", title: "Ema Analysis", description: "Initial liability: Disputed (50/50)." }
+                ],
+                documents: [
+                    {
+                        name: "fnol_transcript.pdf",
+                        type: "PDF",
+                        date: "Feb 14",
+                        summary: "Initial call transcript. Insured reports being struck while proceeding through green light at Main & 4th intersection. Claimant vehicle ran red light per insured account. Minor injuries reported."
+                    },
+                    {
+                        name: "scene_photos.zip",
+                        type: "IMG",
+                        date: "Feb 14",
+                        summary: "8 photos showing front-end damage to both vehicles, intersection layout, traffic signals, and debris field. Damage consistent with T-bone collision. Skid marks visible from claimant vehicle."
+                    },
+                    {
+                        name: "police_report.pdf",
+                        type: "PDF",
+                        date: "Feb 15",
+                        summary: "Officer cited claimant for failure to yield. Witness Michael Brown corroborates insured's account. Dashcam footage mentioned but not yet obtained. Estimated damage: $18,500 (insured), $12,000 (claimant)."
+                    }
+                ],
+                actions: [
+                    { id: 1, type: "email", title: "Approve Witness Outreach", description: "Drafted email to witness", status: "pending" },
+                    { id: 2, type: "review", title: "Review Liability Analysis", description: "80% liability on Claimant", status: "pending", confidence: 0.85 }
+                ]
+            },
+            {
+                id: "CLM-2025-004",
+                status: "Pending",
+                priority: "Medium",
+                description: "Hail damage - roof inspection pending",
+                parties: [
+                    { name: "Robert Wilson", role: "Insured", vehicle: "N/A (Property)", phone: "(555) 234-5678" }
+                ],
+                timeline: [
+                    { date: "Feb 12, 02:00 PM", type: "FNOL", title: "First Notice of Loss", description: "Hail damage reported." }
+                ],
+                documents: [
+                    {
+                        name: "damage_photos.zip",
+                        type: "IMG",
+                        date: "Feb 12",
+                        summary: "Photos of roof showing multiple impact points from hail. Shingles appear damaged with visible dents and cracks. Gutters also show impact damage."
+                    }
+                ],
+                actions: []
+            },
+            {
+                id: "CLM-2025-007",
+                status: "Review",
+                priority: "Low",
+                description: "Minor fender bender - parking lot",
+                parties: [
+                    { name: "Emily Chen", role: "Insured", vehicle: "2021 Honda Accord", phone: "(555) 345-6789" },
+                    { name: "Mark Johnson", role: "Claimant", vehicle: "2020 Ford F-150", phone: "(555) 456-7890" }
+                ],
+                timeline: [
+                    { date: "Feb 10, 11:30 AM", type: "FNOL", title: "First Notice of Loss", description: "Parking lot collision." },
+                    { date: "Feb 10, 03:00 PM", type: "AI", title: "Ema Analysis", description: "Clear liability: Insured 100%." }
+                ],
+                documents: [
+                    {
+                        name: "parking_lot_diagram.pdf",
+                        type: "PDF",
+                        date: "Feb 10",
+                        summary: "Diagram showing insured backing out of parking space and striking claimant's vehicle. Both parties agree on sequence of events. Minor damage to rear bumper (insured) and side panel (claimant)."
+                    }
+                ],
+                actions: []
+            }
+        ];
+
+        // State
+        let currentView = 'dashboard'; // 'dashboard', 'allclaims', 'claim'
+        let activeTab = 'summary';
+        let selectedClaimId = null;
+        let selectedDocument = null;
+
+        // Get current claim
+        function getCurrentClaim() {
+            return ALL_CLAIMS.find(c => c.id === selectedClaimId) || ALL_CLAIMS[0];
+        }
+
+        // Render Functions
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="flex h-screen">
+                    ${renderSidebar()}
+                    <div class="flex-1 flex flex-col">
+                        ${renderHeader()}
+                        <main class="flex-1 overflow-hidden">
+                            ${currentView === 'dashboard' ? renderDashboard() : currentView === 'allclaims' ? renderAllClaims() : renderClaimDetail()}
+                        </main>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function renderSidebar() {
+            return `
+                <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+                    <div class="p-6 border-b border-gray-100">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">E</div>
+                            <span class="text-xl font-bold">Ema Claims</span>
+                        </div>
+                        <div class="mt-2 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">Chief of Staff Agent</div>
+                    </div>
+                    <nav class="flex-1 p-4 space-y-1">
+                        <button onclick="navigateTo('dashboard')" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg ${currentView === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                            <span class="font-medium text-sm">Dashboard</span>
+                        </button>
+                        <button onclick="navigateTo('allclaims')" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg ${currentView === 'allclaims' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}">
+                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                            <span class="font-medium text-sm">All Claims</span>
+                        </button>
+                    </nav>
+                    <div class="p-4 border-t border-gray-200">
+                        <div class="flex items-center space-x-3 px-2">
+                            <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                                <i data-lucide="user" class="w-4 h-4 text-gray-500"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium">Sarah Jenkins</div>
+                                <div class="text-xs text-gray-500">Senior Adjuster</div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            `;
+        }
+
+        function renderHeader() {
+            return `
+                <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+                    <div class="flex items-center bg-gray-100 rounded-lg px-3 py-2 w-96">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400 mr-2"></i>
+                        <input type="text" placeholder="Search claims..." class="bg-transparent border-none outline-none text-sm w-full">
+                    </div>
+                    <button class="relative p-2 text-gray-500">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                </header>
+            `;
+        }
+
+        function renderDashboard() {
+            return `
+                <div class="p-8 overflow-y-auto h-full">
+                    <h1 class="text-2xl font-bold mb-2">Good Morning, Sarah</h1>
+                    <p class="text-gray-500 mb-8">You have 3 high-priority claims requiring attention.</p>
+                    
+                    <div class="grid grid-cols-3 gap-6 mb-10">
+                        <div class="bg-white p-6 rounded-xl border border-gray-200">
+                            <div class="text-sm text-gray-500 mb-1">Open Claims</div>
+                            <div class="text-3xl font-bold">${ALL_CLAIMS.length}</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-gray-200">
+                            <div class="text-sm text-gray-500 mb-1">Avg Cycle Time</div>
+                            <div class="text-3xl font-bold">12.5 <span class="text-sm text-gray-400">days</span></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-gray-200">
+                            <div class="text-sm text-gray-500 mb-1">Ema Actions Pending</div>
+                            <div class="text-3xl font-bold text-blue-600">8</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between">
+                            <h2 class="font-bold">Priority Claims</h2>
+                        </div>
+                        <div onclick="openClaim('${ALL_CLAIMS[0].id}')" class="p-6 hover:bg-gray-50 cursor-pointer group">
+                            <div class="flex justify-between">
+                                <div class="flex space-x-4">
+                                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                                        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center space-x-2 mb-1">
+                                            <span class="font-bold">${ALL_CLAIMS[0].id}</span>
+                                            <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">High Priority</span>
+                                        </div>
+                                        <div class="text-sm font-medium mb-1">${ALL_CLAIMS[0].parties[0].name} vs. ${ALL_CLAIMS[0].parties[1].name}</div>
+                                        <div class="text-sm text-gray-500">${ALL_CLAIMS[0].description}</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100">
+                                    <span>Open Claim</span>
+                                    <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 ml-14 bg-blue-50 rounded-lg p-3 border border-blue-100 flex space-x-3">
+                                <div class="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white text-xs font-bold">E</div>
+                                <div class="text-sm text-blue-900"><span class="font-bold">Action Required:</span> Liability analysis complete. Review recommended settlement range ($12k - $15k).</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAllClaims() {
+            const getPriorityColor = (priority) => {
+                if (priority === 'High') return 'bg-red-100 text-red-700';
+                if (priority === 'Medium') return 'bg-yellow-100 text-yellow-700';
+                return 'bg-gray-100 text-gray-700';
+            };
+
+            return `
+                <div class="p-8 overflow-y-auto h-full">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold mb-2">All Claims</h1>
+                        <p class="text-gray-500">Showing ${ALL_CLAIMS.length} active claims</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-100">
+                            <div class="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase">
+                                <div class="col-span-2">Claim ID</div>
+                                <div class="col-span-3">Parties</div>
+                                <div class="col-span-3">Description</div>
+                                <div class="col-span-2">Status</div>
+                                <div class="col-span-2">Priority</div>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            ${ALL_CLAIMS.map(claim => `
+                                <div onclick="openClaim('${claim.id}')" class="px-6 py-4 hover:bg-gray-50 cursor-pointer group">
+                                    <div class="grid grid-cols-12 gap-4 items-center">
+                                        <div class="col-span-2">
+                                            <span class="font-bold text-gray-900">${claim.id}</span>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <div class="text-sm font-medium text-gray-900">${claim.parties[0].name}</div>
+                                            ${claim.parties[1] ? `<div class="text-xs text-gray-500">vs. ${claim.parties[1].name}</div>` : ''}
+                                        </div>
+                                        <div class="col-span-3">
+                                            <div class="text-sm text-gray-600">${claim.description}</div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <span class="px-2 py-1 rounded bg-gray-100 text-gray-600 text-xs font-medium">${claim.status}</span>
+                                        </div>
+                                        <div class="col-span-2 flex items-center justify-between">
+                                            <span class="px-2 py-1 rounded ${getPriorityColor(claim.priority)} text-xs font-bold">${claim.priority}</span>
+                                            <i data-lucide="arrow-right" class="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderClaimDetail() {
+            const claim = getCurrentClaim();
+            return `
+                <div class="flex h-full flex-col">
+                    <div class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+                        <div class="flex items-center space-x-4">
+                            <button onclick="navigateTo('${currentView === 'claim' ? 'dashboard' : 'allclaims'}')" class="p-2 hover:bg-gray-100 rounded-lg">
+                                <i data-lucide="arrow-left" class="w-5 h-5 text-gray-500"></i>
+                            </button>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-bold text-lg">${claim.id}</span>
+                                    <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-bold">${claim.status}</span>
+                                </div>
+                                <div class="text-xs text-gray-500">${claim.parties[0].name}${claim.parties[1] ? ' vs. ' + claim.parties[1].name : ''}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 flex overflow-hidden">
+                        <!-- Chat Panel -->
+                        <div class="w-1/4 min-w-[300px] bg-white border-r border-gray-200 flex flex-col">
+                            <div class="p-3 border-b bg-gray-50 flex items-center space-x-2">
+                                <i data-lucide="message-square" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-xs font-bold text-gray-700 uppercase">Chief of Staff</span>
+                            </div>
+                            <div class="flex-1 p-4 space-y-4">
+                                <div class="flex justify-start">
+                                    <div class="flex space-x-2 max-w-[85%]">
+                                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white flex-shrink-0">
+                                            <i data-lucide="bot" class="w-4 h-4"></i>
+                                        </div>
+                                        <div>
+                                            <div class="p-3 rounded-lg bg-blue-50 text-blue-900 border border-blue-100 text-sm">
+                                                I've analyzed all documents for ${claim.id}. ${claim.documents.length} documents processed. Would you like a summary?
+                                            </div>
+                                            <div class="text-[10px] text-gray-400 mt-1">10:00 AM</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4 border-t border-gray-200">
+                                <div class="relative">
+                                    <input type="text" placeholder="Ask Ema..." class="w-full pl-4 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <button class="absolute right-2 top-2 p-1.5 bg-blue-600 text-white rounded-md">
+                                        <i data-lucide="send" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Case File Panel -->
+                        <div class="flex-1 bg-gray-50 flex flex-col">
+                            <div class="flex bg-white border-b border-gray-200 px-4">
+                                <button onclick="setTab('summary')" class="py-3 px-4 text-sm font-medium border-b-2 ${activeTab === 'summary' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}">Summary</button>
+                                <button onclick="setTab('timeline')" class="py-3 px-4 text-sm font-medium border-b-2 ${activeTab === 'timeline' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}">Timeline</button>
+                                <button onclick="setTab('documents')" class="py-3 px-4 text-sm font-medium border-b-2 ${activeTab === 'documents' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}">Documents</button>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-6">
+                                ${activeTab === 'summary' ? renderSummary(claim) : activeTab === 'timeline' ? renderTimeline(claim) : renderDocuments(claim)}
+                            </div>
+                        </div>
+
+                        <!-- Actions Panel -->
+                        <div class="w-1/4 min-w-[300px] bg-white border-l border-gray-200 overflow-y-auto">
+                            <div class="p-3 border-b bg-gray-50 flex items-center space-x-2 sticky top-0">
+                                <i data-lucide="zap" class="w-4 h-4 text-blue-600"></i>
+                                <span class="text-xs font-bold text-blue-700 uppercase">Actions & Recs</span>
+                            </div>
+                            <div class="p-4 space-y-4">
+                                ${renderActions(claim)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSummary(claim) {
+            return `
+                <div class="space-y-6">
+                    <div class="bg-white p-4 rounded-lg border border-gray-200">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Claim Details</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="text-xs text-gray-400 mb-1">Description</div>
+                                <div class="text-sm text-gray-700">${claim.description}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Involved Parties</h3>
+                        ${claim.parties.map(p => `
+                            <div class="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                                <div class="flex items-center space-x-2 mb-3">
+                                    <div class="w-8 h-8 rounded-full ${p.role === 'Insured' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'} flex items-center justify-center">
+                                        <i data-lucide="user" class="w-4 h-4"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-bold">${p.name}</div>
+                                        <div class="text-xs text-gray-500">${p.role}</div>
+                                    </div>
+                                </div>
+                                <div class="space-y-2 text-sm">
+                                    ${p.vehicle !== 'N/A (Property)' ? `
+                                        <div class="flex items-center text-gray-600">
+                                            <i data-lucide="car" class="w-4 h-4 mr-2 text-gray-400"></i>
+                                            <span>${p.vehicle}</span>
+                                        </div>
+                                    ` : ''}
+                                    <div class="flex items-center text-gray-600">
+                                        <i data-lucide="phone" class="w-4 h-4 mr-2 text-gray-400"></i>
+                                        <span>${p.phone}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTimeline(claim) {
+            return `
+                <div class="p-4">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-4">Activity Timeline</h3>
+                    ${claim.timeline.map((event, i) => `
+                        <div class="flex space-x-3 mb-8">
+                            <div class="flex flex-col items-center">
+                                <div class="w-8 h-8 rounded-full ${event.type === 'AI' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center ring-4 ring-white">
+                                    <i data-lucide="${event.type === 'FNOL' ? 'phone' : event.type === 'AI' ? 'bot' : 'file-text'}" class="w-4 h-4"></i>
+                                </div>
+                                ${i < claim.timeline.length - 1 ? '<div class="w-0.5 flex-1 bg-gray-200 my-1"></div>' : ''}
+                            </div>
+                            <div class="flex-1 pb-8">
+                                <div class="text-xs text-gray-400 mb-0.5">${event.date}</div>
+                                <div class="bg-white p-3 rounded-lg border border-gray-200">
+                                    <div class="text-sm font-bold">${event.title}</div>
+                                    <div class="text-sm text-gray-600 mt-1">${event.description}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderDocuments(claim) {
+            if (selectedDocument) {
+                const doc = claim.documents.find(d => d.name === selectedDocument);
+                return `
+                    <div class="space-y-4">
+                        <button onclick="closeDocument()" class="flex items-center text-blue-600 hover:text-blue-700 text-sm font-medium">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
+                            Back to Documents
+                        </button>
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div class="bg-gray-50 p-4 border-b border-gray-200">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="${doc.type === 'IMG' ? 'image' : 'file-text'}" class="w-6 h-6 ${doc.type === 'IMG' ? 'text-purple-600' : 'text-blue-600'}"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-lg font-bold text-gray-900">${doc.name}</div>
+                                        <div class="text-sm text-gray-500">${doc.date} • ${doc.type}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <div class="mb-4">
+                                    <div class="flex items-center space-x-2 mb-2">
+                                        <div class="w-6 h-6 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                                            <i data-lucide="bot" class="w-4 h-4"></i>
+                                        </div>
+                                        <span class="text-xs font-bold text-blue-600 uppercase">Ema AI Summary</span>
+                                    </div>
+                                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                                        <p class="text-sm text-blue-900 leading-relaxed">${doc.summary}</p>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                        <span>View Full Document</span>
+                                    </button>
+                                    <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg flex items-center justify-center space-x-2">
+                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                        <span>Download</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="p-4">
+                    <div class="flex justify-between mb-4">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase">Case Documents (${claim.documents.length})</h3>
+                        <button class="text-xs font-medium text-blue-600">+ Upload</button>
+                    </div>
+                    <div class="space-y-2">
+                        ${claim.documents.map(doc => `
+                            <div onclick="viewDocument('${doc.name}')" class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="${doc.type === 'IMG' ? 'image' : 'file-text'}" class="w-5 h-5 ${doc.type === 'IMG' ? 'text-purple-600' : 'text-blue-600'}"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium">${doc.name}</div>
+                                        <div class="text-xs text-gray-500">${doc.date} • ${doc.type}</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100">View Summary</div>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderActions(claim) {
+            if (claim.actions.length === 0) {
+                return `
+                    <div class="text-center py-8 text-gray-400 text-sm">
+                        <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-2 text-gray-300"></i>
+                        <div>No pending actions</div>
+                    </div>
+                `;
+            }
+
+            return claim.actions.map(action => {
+                if (action.type === 'email') {
+                    return `
+                        <div class="bg-white border border-blue-100 rounded-lg ring-1 ring-blue-50">
+                            <div class="p-4 bg-blue-50/50">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <div class="w-6 h-6 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                                        <i data-lucide="mail" class="w-4 h-4"></i>
+                                    </div>
+                                    <span class="text-xs font-bold text-blue-600 uppercase">Approval Needed</span>
+                                </div>
+                                <h4 class="font-bold text-sm mb-1">${action.title}</h4>
+                                <p class="text-xs text-gray-500 mb-3">${action.description}</p>
+                                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3 rounded-lg">
+                                    Approve & Send
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div class="bg-white border border-orange-200 rounded-lg ring-1 ring-orange-50">
+                            <div class="p-4 bg-orange-50/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-6 h-6 bg-orange-100 rounded flex items-center justify-center text-orange-600">
+                                            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                        </div>
+                                        <span class="text-xs font-bold text-orange-600 uppercase">Decision Support</span>
+                                    </div>
+                                    <div class="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                        ${Math.round(action.confidence * 100)}% Confidence
+                                    </div>
+                                </div>
+                                <h4 class="font-bold text-sm mb-1">${action.title}</h4>
+                                <p class="text-xs text-gray-500 mb-3">${action.description}</p>
+                                <button class="w-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium py-2 rounded-lg">
+                                    View Reasoning
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+
+        // Navigation
+        window.navigateTo = (view) => {
+            currentView = view;
+            selectedDocument = null;
+            render();
+        };
+
+        window.openClaim = (claimId) => {
+            selectedClaimId = claimId;
+            currentView = 'claim';
+            activeTab = 'summary';
+            selectedDocument = null;
+            render();
+        };
+
+        window.setTab = (tab) => {
+            activeTab = tab;
+            selectedDocument = null;
+            render();
+        };
+
+        window.viewDocument = (docName) => {
+            selectedDocument = docName;
+            render();
+        };
+
+        window.closeDocument = () => {
+            selectedDocument = null;
+            render();
+        };
+
+        // Initial render
+        render();
+    </script>
+</body>
+
+</html>
